@@ -1,23 +1,21 @@
 #!/usr/bin/env bash
 #
-# ./ReconHammer.sh
+# recon_workflow_improved.sh
 #
 # Simple Recon Workflow:
-#  - Parameter for threads (--threads N)
-#  - Parameter for Nmap vuln scripts (--vuln)
-#  - Verbose parameter (--verbose) for subfinder, etc.
-#  - Checks for required dependencies
-#  - Uses CORScanner (cors_scan.py in ./CORScanner) and Dirsearch (dirsearch.py in ./dirsearch)
-#  - Logs to a file
-#  - Generates a final HTML report
-#  - Groups ports for Nmap scans
-#  - Uses GNU Parallel
+#   - Parameter for threads (--threads N)
+#   - Parameter for Nmap vuln scripts (--vuln)
+#   - Verbose parameter (--verbose) for subfinder, etc.
+#   - Checks for required dependencies
+#   - Uses CORScanner (cors_scan.py in ./CORScanner) and Dirsearch (dirsearch.py in ./dirsearch)
+#   - Logs to a file
+#   - Generates a final HTML report
+#   - Groups ports for Nmap scans
 #
 # Usage:
-#   ./ReconHammer.sh <domain> [--threads <NUM>] [--vuln] [--verbose]
+#   ./recon_workflow_improved.sh <domain> [--threads <NUM>] [--vuln] [--verbose]
 #
 # Required Dependencies (must be installed and in PATH):
-#   - amass
 #   - subfinder
 #   - subjack
 #   - massdns
@@ -26,9 +24,10 @@
 #   - nmap
 #   - xsltproc
 #   - parallel
+#   - jq
 #   - python3
 #
-# Author/Credits: github.com/0xBl4nk
+# Author/Credits: 0xBl4nk
 #
 
 set -e  # Stop on error
@@ -93,7 +92,6 @@ fi
 # [1] Dependency Checks
 #####################################
 REQUIRED_CMDS=(
-  "amass"
   "subfinder"
   "subjack"
   "massdns"
@@ -102,6 +100,7 @@ REQUIRED_CMDS=(
   "nmap"
   "parallel"
   "xsltproc"
+  "jq"
 )
 
 if ! command -v python3 &> /dev/null; then
@@ -142,6 +141,7 @@ mkdir -p "${OUTPUT_DIR}" "${SUBDOMAINS_DIR}" "${SCAN_DIR}" \
          "${AQUATONE_DIR}" "${MASSCAN_DIR}" "${NMAP_DIR}" \
          "${DIRSEARCH_RESULT_DIR}" "${LOG_DIR}"
 
+# Redirect stdout and stderr to log file
 exec > >(tee -a "${LOG_DIR}/workflow.log") 2>&1
 
 echo "============================================"
@@ -154,22 +154,9 @@ echo "============================================"
 echo
 
 #####################################
-# [3] Subdomain Enumeration
+# [3] Subdomain Enumeration (Subfinder only)
 #####################################
 echo "[1] Subdomain Enumeration..."
-
-if [ $VERBOSE -eq 1 ]; then
-  AMASS_EXTRA_FLAGS="-v"
-else
-  AMASS_EXTRA_FLAGS=""
-fi
-
-echo " > Running AMASS (passive)..."
-amass enum -d "${DOMAIN}" \
-    -o "${SUBDOMAINS_DIR}/amass.txt" \
-    --passive \
-    $AMASS_EXTRA_FLAGS \
-    2>> "${LOG_DIR}/amass_error.log"
 
 echo " > Running SUBFINDER..."
 if [ $VERBOSE -eq 1 ]; then
@@ -185,7 +172,9 @@ else
             2>> "${LOG_DIR}/subfinder_error.log"
 fi
 
-cat "${SUBDOMAINS_DIR}/amass.txt" "${SUBDOMAINS_DIR}/subfinder.txt" \
+# Filtra apenas domínios válidos
+cat "${SUBDOMAINS_DIR}/subfinder.txt" \
+  | grep -Eo '([a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,})' \
   | sort -u \
   > "${SUBDOMAINS_DIR}/final-subdomains.txt"
 
@@ -279,9 +268,9 @@ echo " > Aquatone done. See ${AQUATONE_DIR}"
 echo
 
 #####################################
-# [8] Dirsearch + Parallel
+# [8] Dirsearch using Parallel
 #####################################
-echo "[6] Dirsearch in parallel..."
+echo "[6] Dirsearch using Parallel..."
 
 WORDLIST="./directory-list-2.3-medium.txt"
 if [ ! -f "$WORDLIST" ]; then
@@ -289,29 +278,32 @@ if [ ! -f "$WORDLIST" ]; then
   exit 1
 fi
 
-DIRSEARCH_CMD="python3 ./dirsearch/dirsearch.py"
+# Use the dirsearch script (ensure it is executable)
+DIRSEARCH_CMD="./dirsearch/dirsearch.py"
 
 dirsearch_func() {
   local sub="$1"
+  echo " > Running dirsearch on ${sub} (http)..."
   $DIRSEARCH_CMD -u "http://${sub}" \
-      -e php,asp,aspx,jsp,js,html,zip,txt \
+      -e "php,asp,aspx,jsp,js,html,zip,txt" \
       -w "$WORDLIST" \
       -t "${THREADS}" \
-      --plain-text-report="${DIRSEARCH_RESULT_DIR}/${sub}_http.txt" \
+      -o "${DIRSEARCH_RESULT_DIR}/${sub}_http.txt" \
       > /dev/null 2>&1
 
+  echo " > Running dirsearch on ${sub} (https)..."
   $DIRSEARCH_CMD -u "https://${sub}" \
-      -e php,asp,aspx,jsp,js,html,zip,txt \
+      -e "php,asp,aspx,jsp,js,html,zip,txt" \
       -w "$WORDLIST" \
       -t "${THREADS}" \
-      --plain-text-report="${DIRSEARCH_RESULT_DIR}/${sub}_https.txt" \
+      -o "${DIRSEARCH_RESULT_DIR}/${sub}_https.txt" \
       > /dev/null 2>&1
 }
 
-export -f dirsearch_func DIRSEARCH_CMD WORDLIST THREADS DIRSEARCH_RESULT_DIR
+export -f dirsearch_func
+export DIRSEARCH_CMD WORDLIST THREADS DIRSEARCH_RESULT_DIR
 
-cat "${SUBDOMAINS_DIR}/final-subdomains.txt" \
-  | parallel -j "${THREADS}" dirsearch_func {}
+cat "${SUBDOMAINS_DIR}/final-subdomains.txt" | parallel -j "${THREADS}" dirsearch_func {}
 
 echo " > Dirsearch finished."
 echo
@@ -327,10 +319,9 @@ sudo masscan -iL "${SCAN_DIR}/final-ips.txt" \
              -oJ "${MASSCAN_DIR}/masscan_output.json" \
              2>> "${LOG_DIR}/masscan_error.log"
 
-cat "${MASSCAN_DIR}/masscan_output.json" \
-  | grep "\"ip\"" \
-  | grep "open" \
-  | sed 's/.*"ip":"\([^"]*\)".*"port":\([0-9]*\).*/\1:\2/' \
+# Usando jq para extrair corretamente o IP e a(s) porta(s)
+cat "${MASSCAN_DIR}/masscan_output.json" | \
+  jq -r '.[] | .ip as $ip | .ports[]? | select(.port != null) | "\($ip):\(.port)"' \
   > "${MASSCAN_DIR}/open_ports.txt"
 
 cp "${MASSCAN_DIR}/masscan_output.json" "${MASSCAN_DIR}/final-masscan.html"
@@ -411,7 +402,7 @@ REPORT_FILE="${OUTPUT_DIR}/report.html"
   echo "    <p><a href=\"aquatone/aquatone_report.html\">aquatone_report.html</a></p>"
 
   echo "    <h2>6. Dirsearch</h2>"
-  echo "    <p>Reports in <code>dirsearch/</code> with <code>_http.txt</code> and <code>_https.txt</code></p>"
+  echo "    <p>Reports in <code>dirsearch/</code> with files ending in <code>_http.txt</code> and <code>_https.txt</code></p>"
 
   echo "    <h2>7. Masscan</h2>"
   echo "    <p><a href=\"masscan/final-masscan.html\">final-masscan.html</a></p>"
