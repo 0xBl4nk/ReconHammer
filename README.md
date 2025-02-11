@@ -30,7 +30,6 @@ ReconHammer is a comprehensive automated reconnaissance workflow designed to str
 Before using ReconHammer, ensure the following tools and files are installed and accessible:
 
 - **Command-Line Tools:**
-  - `amass`
   - `subfinder`
   - `subjack`
   - `massdns`
@@ -39,33 +38,22 @@ Before using ReconHammer, ensure the following tools and files are installed and
   - `nmap`
   - `parallel` (GNU Parallel)
   - `xsltproc`
+  - `jq`
   - `python3`
 
 - **External Scripts:**
   - `./CORScanner/cors_scan.py`
   - `./dirsearch/dirsearch.py`
 
+- **Other Files:**
+  - `wordlist.txt`: Wordlist for dirsearch.
+
 - **Included Files:**
-  - `resolvers.txt`: A list of DNS resolvers for massdns.
-  - `directory-list-2.3-medium.txt`: Wordlist for dirsearch.
+  - -`resolvers.txt`: A list of DNS resolvers for massdns.
 
 > **Note:** Ensure that `cors_scan.py` and `dirsearch.py` are in the correct directories (`./CORScanner/` and `./dirsearch/`, respectively).
 
-## Installation and Setup
-
-1. **Clone or Download the Repository:**
-
-   ```bash
-   git clone https://github.com/0xBl4nk/ReconHammer.git
-   cd ReconHammer
-   ```
-2. **Verify Dependencies:**
-    Make sure all the required tools listed above are installed and in your system's PATH.
-
-    Place Additional Files:
-        Verify that `cors_scan.py` is in the `./CORScanner/` directory.
-        Verify that `dirsearch.py` is in the `./dirsearch/` directory.
-        Place `resolvers.txt` and `directory-list-2.3-medium.txt` in the root directory of the project (or adjust the paths in the script if necessary).
+----
 
 ## Usage
 
@@ -95,38 +83,6 @@ Enable Nmap Vulnerability Scan and Verbose Output:
 ./ReconHammer.sh example.com --vuln --verbose
 ```
 
-> **Tip**: The script performs a basic validation on the provided domain. Ensure you use a valid domain (e.g., example.com).
-
-Directory Structure
-
-Upon execution, ReconHammer creates a results directory (e.g., results_example.com) with the following structure:
-
-```
-results_example.com/
-├── subdomains/
-│   ├── amass.txt
-│   ├── subfinder.txt
-│   └── final-subdomains.txt
-├── scans/
-│   ├── final-takeover.txt
-│   ├── final-cors.txt
-│   ├── massdns_input.txt
-│   ├── massdns_output.txt
-│   ├── combined_ips.txt
-│   └── final-ips.txt
-├── aquatone/
-│   └── (Aquatone screenshot results)
-├── masscan/
-│   ├── masscan_output.json
-│   ├── open_ports.txt
-│   └── final-masscan.html
-├── nmap/
-│   ├── (Nmap XML and HTML output files)
-├── dirsearch/
-│   └── (Dirsearch output files with _http.txt and _https.txt suffixes)
-└── logs/
-    └── workflow.log (and other error logs)
-```
 
 ## Workflow Overview
 
@@ -170,7 +126,6 @@ Author and Credits
 - Author: 0xBl4nk
 - Credits:
     This script integrates a variety of open-source tools commonly used in security reconnaissance and penetration testing.
-  - https://github.com/owasp-amass/amass
   - https://github.com/projectdiscovery/subfinder
   - https://github.com/haccer/subjack
   - https://github.com/blechschmidt/massdns
@@ -181,6 +136,6 @@ Author and Credits
   - https://nmap.org/
   - https://www.gnu.org/software/parallel/
   - http://xmlsoft.org/xslt/xsltproc.html
-
+  - https://github.com/jqlang/jq
 ---
 
