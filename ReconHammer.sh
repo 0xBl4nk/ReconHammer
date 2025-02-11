@@ -272,7 +272,7 @@ echo
 #####################################
 echo "[6] Dirsearch using Parallel..."
 
-WORDLIST="./directory-list-2.3-medium.txt"
+WORDLIST="./wordlist.txt"
 if [ ! -f "$WORDLIST" ]; then
   echo "[ERROR] Wordlist not found at: $WORDLIST"
   exit 1
